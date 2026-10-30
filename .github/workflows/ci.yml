@@ -39,7 +39,6 @@ jobs:
         working-directory: assets/fira-code
       - run: shasum -a 256 -c SHA256SUMS
         working-directory: tests
-      - run: python3 tests/installer.py
       - run: cargo build --release --locked --target "$TARGET"
       - run: cargo package --locked --allow-dirty --target "$TARGET"
       - run: '"target/$TARGET/release/ligaturize" tests/ABeeZee-Regular.ttf assets/fira-code/FiraCode-Regular.ttf -o /tmp/ligaturize-check --quiet'

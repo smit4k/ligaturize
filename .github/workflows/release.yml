@@ -32,9 +32,9 @@ jobs:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
           CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
         run: |
-          test "$(cargo metadata --no-deps --format-version 1 | python3 -c 'import json,sys; print("v" + json.load(sys.stdin)["packages"][0]["version"])')" = "$GITHUB_REF_NAME"
           cargo test --locked --target "$TARGET"
           cargo build --release --locked --target "$TARGET"
+          test "$("target/$TARGET/release/ligaturize" --version)" = "ligaturize ${GITHUB_REF_NAME#v}"
           mkdir -p dist/stage
           cp "target/$TARGET/release/ligaturize" dist/stage/
           cp LICENSE THIRD_PARTY_NOTICES.md dist/stage/
