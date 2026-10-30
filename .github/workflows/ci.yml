@@ -1,0 +1,53 @@
+name: Checks
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    strategy:
+      matrix:
+        include:
+          - os: macos-15
+            target: aarch64-apple-darwin
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+    runs-on: ${{ matrix.os }}
+    env:
+      TARGET: ${{ matrix.target }}
+      CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
+      CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets --all-features --locked --target "$TARGET" -- -D warnings
+      - run: cargo test --locked --target "$TARGET"
+      - run: shasum -a 256 -c SHA256SUMS
+        working-directory: assets/fira-code
+      - run: shasum -a 256 -c SHA256SUMS
+        working-directory: tests
+      - run: python3 tests/installer.py
+      - run: cargo build --release --locked --target "$TARGET"
+      - run: cargo package --locked --allow-dirty --target "$TARGET"
+      - run: '"target/$TARGET/release/ligaturize" tests/ABeeZee-Regular.ttf assets/fira-code/FiraCode-Regular.ttf -o /tmp/ligaturize-check --quiet'
+      - if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y opentype-sanitizer libharfbuzz-bin
+          for font in /tmp/ligaturize-check/*.ttf; do
+            ots-sanitize "$font" /tmp/ligaturize-sanitized.ttf
+            hb-shape "$font" 'x != y === z <----------> a'
+          done

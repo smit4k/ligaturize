@@ -1,0 +1,31 @@
+[package]
+name = "ligaturize"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Patch TrueType fonts with Fira Code's programming ligatures. Offline, in one binary."
+license = "MIT"
+readme = false
+include = ["src/**", "assets/**", "tests/**", "install.sh", "Cargo.toml", "Cargo.lock", "LICENSE", "THIRD_PARTY_NOTICES.md"]
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4.6", features = ["derive"] }
+indicatif = "0.17"
+read-fonts = "0.46"
+rustybuzz = "0.20"
+skrifa = { version = "0.49", default-features = false, features = ["std"] }
+tempfile = "3"
+write-fonts = "0.55"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"

@@ -1,0 +1,66 @@
+name: Release
+on:
+  push:
+    tags: ['v[0-9]*']
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: macos-15
+            target: aarch64-apple-darwin
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - name: Build and test
+        env:
+          TARGET: ${{ matrix.target }}
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
+        run: |
+          test "$(cargo metadata --no-deps --format-version 1 | python3 -c 'import json,sys; print("v" + json.load(sys.stdin)["packages"][0]["version"])')" = "$GITHUB_REF_NAME"
+          cargo test --locked --target "$TARGET"
+          cargo build --release --locked --target "$TARGET"
+          mkdir -p dist/stage
+          cp "target/$TARGET/release/ligaturize" dist/stage/
+          cp LICENSE THIRD_PARTY_NOTICES.md dist/stage/
+          cp assets/fira-code/LICENSE dist/stage/FiraCode-LICENSE
+          tar -czf "dist/ligaturize-$TARGET.tar.gz" -C dist/stage ligaturize LICENSE THIRD_PARTY_NOTICES.md FiraCode-LICENSE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: dist/*.tar.gz
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Prepare installer and checksums
+        run: |
+          sed "s|__REPOSITORY__|$GITHUB_REPOSITORY|g" install.sh > dist/install.sh
+          cd dist
+          sha256sum ligaturize-*.tar.gz > SHA256SUMS
+      - name: Publish assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/SHA256SUMS dist/install.sh --verify-tag --generate-notes
